@@ -49,6 +49,19 @@ function connect() {
         socket.onmessage = recvMessage;
         socket.onclose = recvClose;
         $("#setup_modal").modal("hide");
+
+        // Set location text.
+        $("#locationText").html(lat + ", " + lon);
+
+        // Setup background image.
+        var mapOptions = {
+            mapTypeId: google.maps.MapTypeId.ROADMAP,
+            disableDefaultUI: true, // No controls.
+            center: new google.maps.LatLng(lat, lon),
+            zoom: 8
+        };
+        var mapBox = document.getElementById("mapbox");
+        var map = new google.maps.Map(mapBox, mapOptions);
     }
 }
 
@@ -60,6 +73,7 @@ function locationSuccess(pos) {
     $("#location").html("");
     $("#location").append("<input readonly='true' type='text' class='form-control' id='locationInput' value='" + message + "' />");
 
+    // Re-validate the input so the "enter" button becomes available.
     haveLocation = true;
     validateInput();
 }

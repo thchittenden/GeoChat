@@ -3,15 +3,16 @@
     <head>
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <!-- <meta name="viewport" content="width=device-width, initial-scale=1"> -->
         <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
         <title>GeoChat</title>
-        <link href="css/bootstrap.min.css" rel="stylesheet">
+        <link href="css/bootstrap.css" rel="stylesheet">
         <style>
             html,body {
                 height: 100%;
             }
             body {
+                padding-top: 50px;
                 padding-bottom: 50px;
             }
             .full-height {
@@ -22,10 +23,10 @@
                 overflow-y: auto;
             }
             #log > li:nth-child(even) {
-                background: #f8f8f8;
+                background: rgba(247, 247, 247, 0.5);
             }
             #log > li:nth-child(odd) {
-                background: #f0f0f0;
+                background: rgba(240, 240, 240, 0.5);
             }
             #scrollprompt {
                 position: absolute;
@@ -43,11 +44,32 @@
                 line-height: 60px;
                 cursor: button;
             }
+            #mapbox {
+                position: absolute;
+                z-index: -1;
+                height: 100%;
+                width: 100%;
+                top: 0;
+                left: 0;
+                opacity: 0.4;
+            }
+            #message {
+                width: 100%;
+            }
         </style>
+        <script src="https://maps.googleapis.com/maps/api/js?sensor=false"></script>
         <script src="//code.jquery.com/jquery-1.11.3.min.js"></script>
         <script src="js/chat.js"></script>
     </head>
     <body>
+        <!-- The header navbar. -->
+        <nav class="navbar navbar-inverse navbar-fixed-top">
+            <div class="navbar-brand">GeoChat</div>
+            <div class="navbar-right" style="padding-right: 15px">
+                <p id="locationText" class="navbar-text"></p>
+            </div>
+        </nav>
+
         <!-- The message log. -->
         <div class="container-fluid full-height">
             <div id="logbox" class="row full-height">
@@ -56,12 +78,13 @@
             <div id="scrollprompt" style="display: none">
                 <span class="glyphicon glyphicon-chevron-down"></span>
             </div>
+            <div id="mapbox" />
         </div>
 
-        <!-- The 'navbar'. This contains the message box. -->
+        <!-- The input navbar. This contains the message box. -->
         <nav class="navbar navbar-inverse navbar-fixed-bottom">
             <form class="navbar-form" action="javascript:sendMessage()">
-                <input id="message" type="text" autocomplete="off" class="form-control" style="width: 100%" />
+                <input id="message" type="text" autocomplete="off" class="form-control" />
             </form>
         </nav>
 
