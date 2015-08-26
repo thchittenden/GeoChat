@@ -22,11 +22,24 @@
             #logbox {
                 overflow-y: auto;
             }
-            #log > li:nth-child(even) {
-                background: rgba(247, 247, 247, 0.5);
+            #log {
+                padding-top: 10px;
+                padding-bottom: 10px;
             }
-            #log > li:nth-child(odd) {
-                background: rgba(240, 240, 240, 0.5);
+            #log > li {
+                display:table;
+                margin: 10px;
+                padding: 5px;
+                padding-left: 10px;
+                padding-right: 10px;
+                border-radius: 20px;
+                background: rgba(255,255,255,0.8);
+            }
+            #log > li:first-child {
+                margin-top: 0px;
+            }
+            #log > li:last-child {
+                margin-bottom: 0px;
             }
             #scrollprompt {
                 position: absolute;

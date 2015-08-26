@@ -87,7 +87,7 @@ function recvMessage(event) {
         case "ServerMessage":
             $("#log").append("<li><strong>" + msg.userAlias + ": </strong>" +  msg.message + "</li>");
             if (autoscroll) {
-                $("#logbox").stop().scrollTop($("#log").height() - $("#logbox").height());
+                $("#logbox").stop().scrollTop(getScrollTop());
             }
             break;
         case "ServerInitUsers":
@@ -206,7 +206,20 @@ function validateInput() {
     $("#enterButton").attr("disabled", !valid);
 }
 
+function getScrollTop() {
+    // The adjustment factor to the top scroll value. This is due to the padding
+    // on the #logbox. I don't know why its 21 and not 20!
+    var liMarginExtra = 21;
+    return $("#log").height() - $("#logbox").height() + liMarginExtra;
+}
+
+function getScrollCur() {
+    return $("#logbox").scrollTop();
+}
+
 $(function() {
+    var liMargin = 10;
+
     // Display the setup modal with no way to escape it.
     $("#setup_modal").modal({
         backdrop: 'static',
@@ -220,8 +233,7 @@ $(function() {
 
     // When the scroll prompt is clicked, scroll to the bottom.
     $("#scrollprompt").bind('click', function() {
-        var target = $("#log").height() - $("#logbox").height();
-        $("#logbox").animate({ scrollTop: target }, 'fast');
+        $("#logbox").animate({ scrollTop: getScrollTop() }, 'fast');
         autoscroll = true;
         autoscrollPending = true;
         $("#scrollprompt").fadeOut(250);
@@ -230,9 +242,7 @@ $(function() {
     // When the logbox is scrolled, display the scroll prompt and disable
     // autoscrolling.
     $("#logbox").bind('scroll', function() {
-        var topScroll = $("#log").height() - $("#logbox").height();
-        var curScroll = $("#logbox").scrollTop();
-        if (curScroll == topScroll) {
+        if (getScrollTop() == getScrollCur()) {
             // User returned to bottom of screen. Start auto-scrolling.
             autoscroll = true;
             autoscrollPending = false;

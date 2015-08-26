@@ -29,7 +29,8 @@ getChatroom = chatroom <$> get >>= (liftIO . readTVarIO)
 withChannelDo' ::(TChan ServerPacket -> IO a) ->  TVar ChatRoom -> IO a
 withChannelDo' action tvar = handle retry $ do
     chatroom <- liftIO $ readTVarIO tvar
-    action (channel chatroom)
+    channel <- liftIO $ atomically $ dupTChan (channel chatroom)
+    action channel
     where retry ChatroomChanged = withChannelDo' action tvar
           retry SessionEnded = throw SessionEnded
 
