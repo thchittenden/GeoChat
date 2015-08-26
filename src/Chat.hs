@@ -19,6 +19,10 @@ import Network.Wai.Handler.WebSockets
 import Servant
 import System.IO.Unsafe
 import Util
+import Chat.ChannelMap
+import Chat.Session
+import Chat.Packet
+import Chat.Room
 
 type ChatAPI = "chat" :> Capture "alias" String :> Capture "lat" Double :> Capture "lon" Double :> Raw
 
@@ -28,39 +32,32 @@ chatApi = Proxy
 chatServer :: Server ChatAPI
 chatServer = chatroom
 
-data ChatMessage = ChatMessage {
-    alias :: String,
-    text :: String
-} deriving Generic
-instance FromJSON ChatMessage
-instance ToJSON ChatMessage
-
 -- This is pretty unsafe/unsound (Who runs this? When is it run!?) but unless
 -- we want initialization to bubble up to main, this is how it's gonna be.
-{-# NOINLINE channelMap #-}
-channelMap :: TMVar (Map Integer (TChan ChatMessage))
-channelMap = unsafePerformIO $ newTMVarIO Map.empty
+{-# NOINLINE chatroomChannel #-}
+chatroomChannel :: TChan ServerPacket
+chatroomChannel = unsafePerformIO newTChanIO
 
-getChannel :: Integer -> STM (TChan ChatMessage)
-getChannel id = do
-    m <- takeTMVar channelMap
-    (v, m') <- lookupOrInsertM id newBroadcastTChan m
-    putTMVar channelMap m'
-    dupTChan v
+{-# NOINLINE chatroomUsers #-}
+chatroomUsers :: ChatRoom
+chatroomUsers = unsafePerformIO (newChatRoom "default" chatroomChannel)
 
 -- Sends data to the client received over the channel.
-chatroomSend :: String -> TChan ChatMessage -> WS.Connection -> IO ()
-chatroomSend alias chan con = forever $ do
-    msg <- atomically $ readTChan chan
-    sendTextData con (encode msg)
+chatroomSend :: ChatSession ()
+chatroomSend = forever $ recvChannel >>= sendClient
 
--- Receives data from the client and sends over the channel.
-chatroomRecv :: String -> TChan ChatMessage -> WS.Connection -> IO ()
-chatroomRecv alias chan con = forever $ do
-    msg <- receiveDataMessage con
-    case msg of
-        Text val -> atomically $ writeTChan chan (ChatMessage alias (BS.unpack val))
-        otherwise -> putStrLn ("Invalid message: " ++ show msg)
+-- Sends data to the channel from the client.
+chatroomRecv :: ChatSession ()
+chatroomRecv = forever $ do
+    alias <- getAlias
+    clientPacket <- recvClient
+    case clientPacket of
+        ClientMessage msg -> sendChannel (ServerMessage alias msg)
+
+sendUsers :: ChatSession ()
+sendUsers = do
+    users <- liftIO $ getUsers chatroomUsers
+    sendClient (ServerInitUsers users)
 
 -- Not much to do on a connection exception. Just log it. Usually
 -- these are just ConnectionClosed exceptions.
@@ -68,16 +65,22 @@ chatroomExHandler :: ConnectionException -> IO ()
 chatroomExHandler ex = putStrLn ("Exception: " ++ show ex)
 
 -- Accepts a pending connection and routes messages to/from the channel.
-chatroomApp :: String -> WS.PendingConnection -> IO ()
-chatroomApp alias pcon = do
-    chan <- atomically $ getChannel 0
+chatroomApp :: String -> Double -> Double -> WS.PendingConnection -> IO ()
+chatroomApp alias lat lon pcon = do
     con <- acceptRequest pcon
+    putStrLn ("Connection from " ++ alias ++ " at " ++ "(" ++ show lat ++ ", " ++ show lon ++ ")")
+    let state = UserState alias lat lon chatroomChannel con
+        user = ChatUser alias lat lon
+        send = runSession chatroomSend state
+        recv = runSession chatroomRecv state
+    addUser chatroomUsers user
+    runSession sendUsers state
     bracket
-        (forkIO $ chatroomSend alias chan con)
-        (killThread)
-        (\_ -> catch (chatroomRecv alias chan con) chatroomExHandler)
+        (forkIO $ catch send chatroomExHandler) killThread
+        (\____ -> catch recv chatroomExHandler)
+    removeUser chatroomUsers user
 
 chatroom :: String -> Double -> Double -> Application
-chatroom alias lat lon = websocketsOr ops (chatroomApp alias) defaultApp
+chatroom alias lat lon = websocketsOr ops (chatroomApp alias lat lon) defaultApp
     where ops = defaultConnectionOptions
           defaultApp _ resp = resp (responseLBS imATeaPot418 [] "")

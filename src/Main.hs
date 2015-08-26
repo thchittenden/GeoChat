@@ -25,4 +25,4 @@ main = runServer
           runServer = runSettings settings app
 
 onOpen :: SockAddr -> IO Bool
-onOpen addr = putStrLn ("Connection: " ++ show addr) >> return True
+onOpen addr = return True
