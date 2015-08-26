@@ -1,32 +1,54 @@
 module Chat.Room where
 
+import Chat.Packet
+import Chat.Types
+import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad
-import qualified Chat.Packet as P
 import qualified Data.Map as Map
 
-data ChatRoom = ChatRoom {
-    name :: String,
-    chan :: TChan P.ServerPacket,
-    users :: TVar (Map.Map String P.ChatUser)
-}
+modifyTMVar :: TMVar a -> (a -> a) -> STM ()
+modifyTMVar tmvar action = do
+    var <- takeTMVar tmvar
+    putTMVar tmvar (action var)
 
-newChatRoom :: String -> TChan P.ServerPacket -> IO ChatRoom
-newChatRoom name chan = liftM (ChatRoom name chan) (newTVarIO Map.empty)
+{-
+splitRoom :: (ChatSession -> Bool) -> ChatRoom -> IO (ChatRoom, ChatRoom)
+splitRoom cond room = do
+    -- Extract the sessions, partition them on the predicate, and replace the
+    -- left half.
+    sess <- atomically $ takeTMVar (sessions room)
+    let (lsess, rsess) = Map.partition cond sess
+    atomically $ putTMVar (sessions room) lsess
 
-addUser :: ChatRoom -> P.ChatUser -> IO ()
-addUser room user = do
-    let alias = P.alias user
+    -- Construct a new ChatRoom for the right half and notify the threads.
+    newChan <- newTChanIO
+    newSessions <- newTMVarIO rsess
+    let newRoom = ChatRoom newChan newSessions
+    forM_ (Map.elems rsess) $ \sess -> do
+        atomically . flip writeTVar newChan . chan $ sess
+        throwTo (tid sess) ChannelChanged
+
+    -- Return the old and new chat room.
+    return (room, newRoom)
+-}
+
+newChatRoom :: String -> IO ChatRoom
+newChatRoom name = do
+    chan <- newTChanIO
+    sess <- newTMVarIO Map.empty
+    return $ ChatRoom name chan sess
+
+addSession :: ChatRoom -> ChatSession -> IO ()
+addSession room sess = do
+    let alias = userStateAlias sess
     putStrLn ("Adding " ++ alias ++ " to chatroom " ++ name room)
-    atomically $ modifyTVar (users room) (Map.insert alias user)
-    atomically $ writeTChan (chan room) (P.ServerAddUser user)
+    atomically $ modifyTMVar (sessions room) (Map.insert alias sess)
+    atomically $ writeTChan (channel room) (ServerAddUser (getUser sess))
 
-removeUser :: ChatRoom -> P.ChatUser -> IO ()
-removeUser room user = do
-    let alias = P.alias user
+removeSession :: ChatRoom -> ChatSession -> IO ()
+removeSession room sess = do
+    let alias = userStateAlias sess
     putStrLn ("Removing " ++ alias ++ " from chatroom " ++ name room)
-    atomically $ writeTChan (chan room) (P.ServerRemoveUser user)
-    atomically $ modifyTVar (users room) (Map.delete alias)
-
-getUsers :: ChatRoom -> IO [P.ChatUser]
-getUsers room = atomically $ liftM Map.elems (readTVar (users room))
+    atomically $ writeTChan (channel room) (ServerRemoveUser (getUser sess))
+    atomically $ modifyTMVar (sessions room) (Map.delete alias)

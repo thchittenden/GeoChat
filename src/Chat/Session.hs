@@ -1,56 +1,82 @@
 module Chat.Session where
 
+import Chat.Room
+import Chat.Session.Action
+import Chat.Types
+import Control.Arrow
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TMVar
-import Control.Arrow
+import Control.Exception
+import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.State
 import Chat.Packet
 import Data.Aeson
 import Network.WebSockets as WS
 
+newSession :: ChatUser -> WS.Connection -> ChatRoom -> IO ChatSession
+newSession user con chatroom = do
+    putStrLn ("New Session: " ++ show user)
+    sessBox <- newEmptyTMVarIO
+    sendTid <- forkIO $ sendThread sessBox
+    recvTid <- forkIO $ recvThread sessBox
+    chatroomVar <- newTVarIO chatroom
+    exited <- newEmptyTMVarIO
+    let sess = ChatSession sendTid recvTid exited (alias user) (lat user) (lon user) chatroomVar con
+    addSession chatroom sess
+    atomically $ putTMVar sessBox sess
+    return sess
 
-data UserState = UserState {
-    userStateAlias :: String,
-    userStateLat :: Double,
-    userStateLon :: Double,
-    chan :: TChan ServerPacket,
-    con :: WS.Connection
-}
+-- The send thread channels messages from the chatroom channel to the client connection.
+sendThread :: TMVar ChatSession -> IO ()
+sendThread sessBox = do
+    sess <- atomically $ readTMVar sessBox
+    handle sendHandler $ runAction sendAction sess
 
-type ChatSession a = StateT UserState IO a
+sendHandler :: SomeException -> IO ()
+sendHandler ex = putStrLn ("Send Exception: " ++ show ex)
 
-getAlias :: ChatSession String
-getAlias = userStateAlias <$> get
+sendAction :: SessionAction ()
+sendAction = do
+    chatroom <- getChatroom
+    users <- liftIO $ getUsers chatroom
+    sendClient (ServerInitUsers users)
+    forever $ recvChannel >>= sendClient
 
-getPosition :: ChatSession (Double, Double)
-getPosition = (userStateLat &&& userStateLon) <$> get
+-- The receive thread channels messages from the client connection to the
+-- chatroom channel. When the client closes the connection (throwing a
+-- ConnectionClosed exception, this thread will kill the sending thread and
+-- notify any waiters that they've exited).
+recvThread :: TMVar ChatSession -> IO ()
+recvThread sessBox = do
+    sess <- atomically $ readTMVar sessBox
+    handle (recvHandler sess) $ runAction recvAction sess
 
-getChannel :: ChatSession (TChan ServerPacket)
-getChannel = chan <$> get
+recvHandler :: ChatSession -> SomeException -> IO ()
+recvHandler sess ex = do
+    putStrLn ("Recv Exception: " ++ show ex)
+    throwTo (sendTid sess) SessionEnded
+    atomically $ putTMVar (exited sess) ()
 
-getConnection :: ChatSession WS.Connection
-getConnection = con <$> get
+recvAction :: SessionAction ()
+recvAction = forever $ do
+    alias <- getAlias
+    clientPacket <- recvClient
+    case clientPacket of
+        ClientMessage msg -> sendChannel (ServerMessage alias msg)
 
-recvChannel :: ChatSession ServerPacket
-recvChannel = getChannel >>= liftIO . atomically . readTChan
+-- Waits for the client to end the session.
+waitSession :: ChatSession -> IO ()
+waitSession sess = do
+    atomically $ readTMVar (exited sess)
+    chatroom <- readTVarIO (chatroom sess)
+    removeSession chatroom sess
+    putStrLn $ "Session ended: " ++ show (getUser sess)
 
-sendChannel :: ServerPacket -> ChatSession ()
-sendChannel p = getChannel >>= liftIO . atomically . flip writeTChan p
-
-recvClient :: ChatSession ClientPacket
-recvClient = do
-    con <- getConnection
-    msg <- liftIO $ receiveDataMessage con
-    case msg of
-        Text txt -> case decode' txt of
-            Just pack -> return pack
-            otherwise -> recvClient
-        otherwise -> recvClient
-
-sendClient :: ServerPacket -> ChatSession ()
-sendClient p = getConnection >>= liftIO . flip sendTextData (encode p)
-
-runSession :: ChatSession a -> UserState -> IO a
-runSession = evalStateT
+-- Forcibly closes the connection.
+killSession :: ChatSession -> IO ()
+killSession sess = do
+    killThread (sendTid sess)
+    killThread (recvTid sess)
+    waitSession sess
