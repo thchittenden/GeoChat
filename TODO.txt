@@ -1,4 +1,2 @@
-stop xss (only let me xss)
 server logging information
-map of users
 intro message

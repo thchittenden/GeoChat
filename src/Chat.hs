@@ -45,6 +45,7 @@ rootChatroom = unsafePerformIO (newChatRoom "root")
 -- Accepts a pending connection and starts a new session.
 chatroomApp :: String -> Double -> Double -> WS.PendingConnection -> IO ()
 chatroomApp alias lat lon pcon = do
+    let alias' = sanitizeString alias
     con <- acceptRequest pcon
-    sess <- newSession (ChatUser alias lat lon) con rootChatroom
+    sess <- newSession (ChatUser alias' lat lon) con rootChatroom
     waitSession sess
