@@ -1,2 +1,1 @@
-server logging information
-intro message
+fix mobile version

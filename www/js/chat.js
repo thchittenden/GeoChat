@@ -7,6 +7,8 @@ var mapBounds;
 var lat;
 var lon;
 var users = {};
+var isActive = true;
+var newMessageCount = 0;
 
 function updateBounds() {
     var newBounds = new google.maps.LatLngBounds();
@@ -89,6 +91,10 @@ function recvMessage(event) {
             if (autoscroll) {
                 $("#logbox").stop().scrollTop(getScrollTop());
             }
+            if (!isActive) {
+                newMessageCount++;
+                document.title = "New messages (" + newMessageCount + ")";
+            }
             break;
         case "ServerInitUsers":
             setUsers(msg.users);
@@ -168,14 +174,14 @@ function locationSuccess(pos) {
 
 function locationError(err) {
     var message;
-    switch(error.code) {
-        case error.PERMISSION_DENIED:
+    switch(err.code) {
+        case err.PERMISSION_DENIED:
             message = "Location permission denied.";
             break;
-        case error.POSITION_UNAVAILABLE:
+        case err.POSITION_UNAVAILABLE:
             message = "Location unavailable.";
             break;
-        case error.TIMEOUT:
+        case err.TIMEOUT:
             message = "Location request timed out.";
             break;
         default:
@@ -259,6 +265,16 @@ $(function() {
         if (map && mapBounds) {
             map.fitBounds(mapBounds);
         }
+    });
+
+    // Keep track of when the tab is active.
+    $(window).blur(function () {
+        isActive = false;
+    });
+    $(window).focus(function() {
+        isActive = true;
+        newMessageCount = 0;
+        document.title = "GeoChat";
     });
 
     // Kick off GeoLocation and validate any browser entered input.

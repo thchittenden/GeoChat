@@ -26,6 +26,7 @@ newSession user con chatroom = do
     let sess = ChatSession sendTid recvTid exited (alias user) (lat user) (lon user) chatroomVar con
     addSession chatroom sess
     atomically $ putTMVar sessBox sess
+    runAction (forkPingAction 5) sess
     return sess
 
 -- The send thread channels messages from the chatroom channel to the client connection.
@@ -65,6 +66,13 @@ recvAction = forever $ do
     clientPacket <- recvClient
     case clientPacket of
         ClientMessage msg -> sendChannel (ServerMessage alias msg)
+
+-- Creates a thread that sends pings every n seconds to the
+-- client. This keeps sockets from closing on some browsers.
+forkPingAction :: Int -> SessionAction ()
+forkPingAction n = do
+    con <- getConnection
+    liftIO $ forkPingThread con n
 
 -- Waits for the client to end the session.
 waitSession :: ChatSession -> IO ()
