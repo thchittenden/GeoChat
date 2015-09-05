@@ -14,10 +14,13 @@ server :: Server API
 server = chatServer
     :<|> serveDirectory "www"
 
+port :: Int
+port = 8081
+
 main :: IO ()
 main = runServer
     where settings =
-            setPort 8080 $
+            setPort port $
             setOnOpen onOpen
             defaultSettings
           api = Proxy :: Proxy API
