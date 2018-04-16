@@ -1,6 +1,3 @@
-import Control.Concurrent
-import Control.Concurrent.STM
-import Control.Monad
 import Network.Wai.Handler.Warp
 import Network.Socket.Internal
 import Servant
@@ -28,4 +25,5 @@ main = runServer
           runServer = runSettings settings app
 
 onOpen :: SockAddr -> IO Bool
-onOpen addr = return True
+onOpen _ = return True
+

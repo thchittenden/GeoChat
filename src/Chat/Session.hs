@@ -3,16 +3,12 @@ module Chat.Session where
 import Chat.Room
 import Chat.Session.Action
 import Chat.Types
-import Control.Arrow
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Concurrent.STM.TMVar
 import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
-import Control.Monad.Trans.State
 import Chat.Packet
-import Data.Aeson
 import Network.WebSockets as WS
 
 newSession :: ChatUser -> WS.Connection -> ChatRoom -> IO ChatSession

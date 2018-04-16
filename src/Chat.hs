@@ -3,23 +3,10 @@ module Chat where
 import Chat.Packet
 import Chat.Room
 import Chat.Session
-import Chat.Session.Action
 import Chat.Types
-import Control.Concurrent
-import Control.Concurrent.STM
-import Control.Concurrent.STM.TMVar
-import Control.Exception.Base
-import Control.Monad
-import Control.Monad.IO.Class
-import Data.Aeson
-import qualified Data.ByteString.Lazy.Char8 as BS
-import Data.Text
-import Data.Map as Map
-import GHC.Generics
 import Network.Wai
 import Network.HTTP.Types
 import Network.WebSockets as WS
-import Network.Wai.Handler.Warp
 import Network.Wai.Handler.WebSockets
 import Servant
 import System.IO.Unsafe
